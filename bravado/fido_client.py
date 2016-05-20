@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 
+import crochet
 import requests
 import six
 
@@ -142,4 +143,11 @@ class FidoFutureAdapter(FutureAdapter):
         self._eventual_result = eventual_result
 
     def result(self, timeout=None):
-        return self._eventual_result.wait(timeout=timeout)
+        try:
+            result = self._eventual_result.wait(timeout=timeout)
+        except crochet.TimeoutError:
+            # we need to cancel the EventualResult here, otherwise it would be
+            # garbage collected causing the underlying network connection to be
+            # uncleanly terminated (see https://github.com/Yelp/fido/issues/31)
+            self._eventual_result.cancel()
+            raise

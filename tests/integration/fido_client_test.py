@@ -16,6 +16,15 @@ except ImportError:
 ROUTE_1_RESPONSE = "HEY BUDDY"
 ROUTE_2_RESPONSE = "BYE BUDDY"
 
+SLOW_TIMEOUT = 2.0
+TIMEOUT = 1.0
+
+
+@bottle.route('/slow_request')
+def slow_request():
+    time.sleep(SLOW_TIMEOUT)
+    return
+
 
 @bottle.route("/1")
 def one():
@@ -47,7 +56,7 @@ def launch_threaded_http_server(port):
     )
     thread.daemon = True
     thread.start()
-    time.sleep(2)
+    time.sleep(SLOW_TIMEOUT)
     return thread
 
 
@@ -78,8 +87,8 @@ class TestServer():
 
         http_future_1 = self.fido_client.request(request_one_params)
         http_future_2 = self.fido_client.request(request_two_params)
-        resp_one = http_future_1.result(timeout=1)
-        resp_two = http_future_2.result(timeout=1)
+        resp_one = http_future_1.result(timeout=TIMEOUT)
+        resp_two = http_future_2.result(timeout=TIMEOUT)
 
         assert resp_one.text == ROUTE_1_RESPONSE
         assert resp_two.text == ROUTE_2_RESPONSE
@@ -94,6 +103,22 @@ class TestServer():
         }
 
         http_future = self.fido_client.request(request_args)
-        resp = http_future.result(timeout=1)
+        resp = http_future.result(timeout=TIMEOUT)
 
         assert resp.text == '6'
+
+    def test_slow_request(self):
+
+        request_params = {
+            'method': 'GET',
+            'headers': {},
+            'url': "http://localhost:{0}/slow_request".format(self.PORT),
+            'params': {},
+        }
+
+        http_future = self.fido_client.request(request_params)
+
+        with pytest.raises(crochet.TimeoutError):
+            http_future.result(timeout=TIMEOUT)
+
+        assert http_future._eventual_result.original_failure() is None
